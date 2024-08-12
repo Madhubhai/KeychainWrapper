@@ -47,6 +47,19 @@ class ViewController: UIViewController {
         } else {
             print("Failed to generate key pair")
         }
+        
+        //*************************  SecAccessControl **************************//
+        let result = saveOrUpdateUserDetails(username: "200Ok", password: "200OK_PASSWORD")
+        if(result){
+            print("User details saved successfully")
+        }else{
+            print("Failed to save user details")
+        }
+        
+        let password = KeychainHelper.fetchUserDetails(username: "200OK")
+        print("Password for 200OK is \(password ?? "")")
+        //*************************  SecAccessControl **************************//
+
     }
 
     /// Saves the user details by encrypting the password with the provided public key.
@@ -141,6 +154,66 @@ class ViewController: UIViewController {
         // Delete the key from the Keychain.
         if KeychainHelper.manageKey(nil, withTag: tag, operation: .delete) {
             print("Key deleted successfully")
+        }
+    }
+    
+    //****************************** USE OF SecAccessControl *****************************//
+    
+    // Saves or updates user details (username and password) in the Keychain.
+    func saveOrUpdateUserDetails(username: String, password: String) -> Bool {
+        // Define the search query to locate the existing Keychain item.
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,  // Look for generic passwords.
+            kSecAttrAccount as String: username,             // Match the account attribute.
+            kSecAttrService as String: "com.example.myapp"  // Match the service attribute.
+        ]
+        
+        // Define the attributes to update for the existing Keychain item (e.g., the password).
+        let attributesToUpdate: [String: Any] = [
+            kSecValueData as String: password.data(using: .utf8)!, // New password data.
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked // Update accessibility.
+        ]
+
+        // Attempt to update the existing Keychain item.
+        let updateStatus = SecItemUpdate(query as CFDictionary, attributesToUpdate as CFDictionary)
+
+        if updateStatus == errSecSuccess {
+            // If the update was successful, print a message and return true.
+            print("User details updated successfully")
+            return true
+        } else if updateStatus == errSecItemNotFound {
+            // If the item does not exist, proceed to add a new item.
+            print("Item not found, adding new item")
+
+            var addStatus: OSStatus
+            if let accessControl = KeychainHelper.createAccessControl() {
+                // Create a new Keychain item with access control.
+                let userDetails: [String: Any] = [
+                    kSecClass as String: kSecClassGenericPassword,  // Define the Keychain item class.
+                    kSecAttrAccount as String: username,             // Account attribute.
+                    kSecAttrService as String: "com.example.myapp",  // Service attribute.
+                    kSecValueData as String: password.data(using: .utf8)!, // Password data.
+                    kSecAttrAccessControl as String: accessControl   // Access control object.
+                ]
+                addStatus = SecItemAdd(userDetails as CFDictionary, nil)
+            } else {
+                // Create a new Keychain item without access control.
+                addStatus = SecItemAdd(query as CFDictionary, nil)
+            }
+
+            if addStatus == errSecSuccess {
+                // If the addition was successful, print a message and return true.
+                print("User details saved successfully")
+                return true
+            } else {
+                // If there was an error adding the new item, print the error status and return false.
+                print("Error saving user details: \(addStatus)")
+                return false
+            }
+        } else {
+            // If there was an error updating the item, print the error status and return false.
+            print("Error updating user details: \(updateStatus)")
+            return false
         }
     }
 

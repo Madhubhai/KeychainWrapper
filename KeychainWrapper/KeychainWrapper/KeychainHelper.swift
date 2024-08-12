@@ -241,5 +241,69 @@ class KeychainHelper {
         
         return data
     }
+    
+    //****************************** START - SecAccessControl *****************************//
+
+    // Fetches the password associated with the specified username from the Keychain.
+    class func fetchUserDetails(username: String) -> String? {
+        // Define the query dictionary to search for the Keychain item.
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,  // Search for generic passwords.
+            kSecAttrAccount as String: username,             // The account attribute to match.
+            kSecAttrService as String: "com.example.myapp",  // The service attribute to match.
+            kSecReturnData as String: kCFBooleanTrue!,       // Request the item’s data.
+            kSecMatchLimit as String: kSecMatchLimitOne,     // Limit the result to one item.
+        ]
+
+        var item: CFTypeRef?
+        // Attempt to fetch the matching Keychain item.
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+
+        if status == errSecSuccess {
+            // If the fetch was successful, convert the retrieved data to a string and return it.
+            if let passwordData = item as? Data,
+               let password = String(data: passwordData, encoding: .utf8) {
+                return password
+            }
+        } else {
+            // Log an error if the fetch failed.
+            print("Error fetching user details: \(status)")
+        }
+        // Return nil if no password was found or an error occurred.
+        return nil
+    }
+
+    // Creates a SecAccessControl object to define access control policies for Keychain items.
+    class func createAccessControl() -> SecAccessControl? {
+        var error: Unmanaged<CFError>? // Variable to capture any errors during creation.
+
+        // Define the access control flags and protection level.
+        let flag: SecAccessControlCreateFlags = [.userPresence] // Require user presence (e.g., biometrics).
+        let protection: AnyObject! = kSecAttrAccessibleWhenUnlocked // Define the protection level for when the item is accessible.
+
+        // Attempt to create the SecAccessControl object with the specified flags and protection level.
+        if let accessControl = SecAccessControlCreateWithFlags(
+            nil,                              // Default allocator.
+            protection,                       // Protection level (bitmask of flags).
+            flag,                            // Additional access control flags.
+            &error                            // Pointer to capture any errors.
+        ) {
+            // Log success and return the created SecAccessControl object.
+            print("SecAccessControl object created successfully")
+            return accessControl
+        } else {
+            // Log the error if creation fails.
+            if let error = error {
+                let errorDescription = CFErrorCopyDescription(error.takeRetainedValue()) as String
+                print("Error creating SecAccessControl object: \(errorDescription)")
+            } else {
+                print("Unknown error occurred")
+            }
+            // Return nil if the creation failed.
+            return nil
+        }
+    }
+    //****************************** END - SecAccessControl *****************************//
+
 }
 
